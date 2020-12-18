@@ -217,12 +217,12 @@ function start(opts) {
           let item = {
             mbtiles: file.name
           };
-          addData(id, item, false, false);
+          addData(id, item);
         }
       }
     });
 
-    const watcher = chokidar.watch(path.join(options.paths.styles, '*.mbtiles'),
+    const watcher = chokidar.watch(path.join(options.paths.mbtiles, '*.mbtiles'),
       {
       });
     watcher.on('all',
