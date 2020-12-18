@@ -115,7 +115,7 @@ function start(opts) {
     );
   }
 
-  let addStyle = (id, item, allowMoreData, reportFonts) => {
+  const addStyle = (id, item, allowMoreData, reportFonts) => {
     let success = true;
     if (item.serve_data !== false) {
         success = serve_style.add(options, serving.styles, item, id, opts.publicUrl,
@@ -135,7 +135,7 @@ function start(opts) {
           if (dataItemId) { // mbtiles exist in the data config
             return dataItemId;
           } else {
-            if (fromData || !allowMoreData) {
+            if (fromData || !allowMoreData || options.serveAllData) {
               console.log(`ERROR: style "${item.style}" using unknown mbtiles "${mbtiles}"! Skipping...`);
               return undefined;
             } else {
@@ -188,6 +188,13 @@ function start(opts) {
     })
   );
 
+  const addData = (id, item) => {
+    data[id] = item;
+    startupPromises.push(
+      serve_data.add(options, serving.data, item, id, opts.publicUrl)
+    );
+  };
+
   for (const id of Object.keys(data)) {
     const item = data[id];
     if (!item.mbtiles || item.mbtiles.length === 0) {
@@ -195,9 +202,45 @@ function start(opts) {
       continue;
     }
 
-    startupPromises.push(
-      serve_data.add(options, serving.data, item, id, opts.publicUrl)
-    );
+    addData(id, item);
+  }
+
+  if (options.serveAllData) {
+    fs.readdir(options.paths.mbtiles, {withFileTypes: true}, (err, files) => {
+      if (err) {
+        return;
+      }
+      for (const file of files) {
+        if (file.isFile() &&
+            path.extname(file.name).toLowerCase() == '.mbtiles') {
+          let id = path.basename(file.name, '.mbtiles');
+          let item = {
+            mbtiles: file.name
+          };
+          addData(id, item, false, false);
+        }
+      }
+    });
+
+    const watcher = chokidar.watch(path.join(options.paths.styles, '*.mbtiles'),
+      {
+      });
+    watcher.on('all',
+      (eventType, filename) => {
+        if (filename) {
+          let id = path.basename(filename, '.mbtiles');
+          console.log(`Data "${id}" changed, updating...`);
+
+          serve_data.remove(serving.data, id);
+
+          if (eventType == "add" || eventType == "change") {
+            let item = {
+              mbtiles: filename
+            };
+            addData(id, item);
+          }
+        }
+      });
   }
 
   if (options.serveAllStyles) {
