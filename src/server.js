@@ -135,7 +135,7 @@ function start(opts) {
           if (dataItemId) { // mbtiles exist in the data config
             return dataItemId;
           } else {
-            if (fromData || !allowMoreData) {
+            if (fromData || !allowMoreData || options.serveAllData) {
               console.log(`ERROR: style "${item.style}" using unknown mbtiles "${mbtiles}"! Skipping...`);
               return undefined;
             } else {
@@ -189,6 +189,7 @@ function start(opts) {
   );
 
   const addData = (id, item) => {
+    data[id] = item;
     startupPromises.push(
       serve_data.add(options, serving.data, item, id, opts.publicUrl)
     );
