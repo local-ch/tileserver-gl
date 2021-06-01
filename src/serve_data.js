@@ -11,12 +11,32 @@ const Pbf = require('pbf');
 const VectorTile = require('@mapbox/vector-tile').VectorTile;
 
 const utils = require('./utils');
+const shaver = require('@mapbox/vtshaver');
+
+const shave = (data, filters, zoom) => new Promise(async (resolve, reject) => {
+  shaver.shave(
+    data,
+    {
+      filters,
+      zoom,
+      compress: {
+        type: 'gzip'
+      }
+    },
+    (error, shavedTile) => {
+    if (error)
+      reject(error);
+    else
+      resolve(shavedTile);
+    }
+  );
+});
 
 module.exports = {
   init: (options, repo) => {
     const app = express().disable('x-powered-by');
 
-    app.get('/:id/:z(\\d+)/:x(\\d+)/:y(\\d+).:format([\\w.]+)', (req, res, next) => {
+    app.get('/:id/:z(\\d+)/:x(\\d+)/:y(\\d+).:format([\\w.]+)', async (req, res, next) => {
       const item = repo[req.params.id];
       if (!item) {
         return res.sendStatus(404);
@@ -38,7 +58,7 @@ module.exports = {
           x >= Math.pow(2, z) || y >= Math.pow(2, z)) {
         return res.status(404).send('Out of bounds');
       }
-      item.source.getTile(z, x, y, (err, data, headers) => {
+      item.source.getTile(z, x, y, async (err, data, headers) => {
         let isGzipped;
         if (err) {
           if (/does not exist/.test(err.message)) {
@@ -63,6 +83,19 @@ module.exports = {
             }
             if (format === 'pbf') {
               headers['Content-Type'] = 'application/x-protobuf';
+
+              // apply vtshaver filters if given
+              const filtersJson = req.query.filters;
+              if (filtersJson) {
+                try {
+                  const filters = new shaver.Filters(JSON.parse(filtersJson));
+                  data = await shave(data, filters, z);
+                } catch (error) {
+                  console.log('filter error:', error);
+                  return res.status(500).send(error.toString() + "\n");
+                }
+              }
+
             } else if (format === 'geojson') {
               headers['Content-Type'] = 'application/json';
 
