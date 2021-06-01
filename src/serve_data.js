@@ -88,10 +88,22 @@ module.exports = {
               headers['Content-Type'] = 'application/x-protobuf';
 
               // apply vtshaver filters if given
-              const filtersJson = req.query.filters;
-              if (filtersJson) {
+              if (req.query.filters) {
                 try {
-                  const filters = new shaver.Filters(JSON.parse(filtersJson));
+                  const filtersJson = JSON.parse(req.query.filters);
+
+                  // set defaults from tileJSON information for properties in filter definitions
+                  if (Array.isArray(item.tileJSON.vector_layers)) {
+                      for (const [layer, filter] of Object.entries(filtersJson)) {
+                          if (!filter.properties) {
+                              const definition = item.tileJSON.vector_layers.filter(def => def.id == layer)[0];
+                              if (definition && definition.fields)
+                                  filter.properties = Object.keys(definition.fields);
+                          }
+                      }
+                  }
+
+                  const filters = new shaver.Filters(filtersJson);
                   data = await shave(
                     {
                         data,
