@@ -13,16 +13,19 @@ const VectorTile = require('@mapbox/vector-tile').VectorTile;
 const utils = require('./utils');
 const shaver = require('@mapbox/vtshaver');
 
-const shave = (data, filters, zoom) => new Promise(async (resolve, reject) => {
-  shaver.shave(
-    data,
-    {
+const shave = ({ data, filters, zoom, maxzoom }) => new Promise(async (resolve, reject) => {
+  const options = {
       filters,
       zoom,
       compress: {
         type: 'gzip'
       }
-    },
+  };
+  if (maxzoom)
+    options.maxzoom = maxzoom;
+  shaver.shave(
+    data,
+    options,
     (error, shavedTile) => {
     if (error)
       reject(error);
@@ -89,7 +92,13 @@ module.exports = {
               if (filtersJson) {
                 try {
                   const filters = new shaver.Filters(JSON.parse(filtersJson));
-                  data = await shave(data, filters, z);
+                  data = await shave(
+                    {
+                        data,
+                        filters,
+                        zoom: z,
+                        maxzoom: item.tileJSON.maxzoom
+                    });
                 } catch (error) {
                   console.log('filter error:', error);
                   return res.status(500).send(error.toString() + "\n");
